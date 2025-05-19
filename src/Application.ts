@@ -1,56 +1,55 @@
-import { Panel } from "./UI/Panel";
-import { UIManager } from "./UIManager";
+type InitOptions = {
+	background?: string;
+	resizeTo?: Window | HTMLElement;
+};
 
 export class Application {
-	public canvas: HTMLCanvasElement;
-	public ui: UIManager;
-	private gl: WebGLRenderingContext;
-	private mouseX = 0;
-	private mouseY = 0;
-	private mousePressed = false;
+	canvas: HTMLCanvasElement;
+	context: CanvasRenderingContext2D;
+	background: string = "#000000";
+
+	private resizeTarget?: Window | HTMLElement | null = null;
 
 	constructor() {
 		this.canvas = document.createElement("canvas");
-		this.canvas.width = window.innerWidth;
-		this.canvas.height = window.innerHeight;
-
-		const gl = this.canvas.getContext("webgl");
-		if (!gl) {
-			throw new Error("Webgl not supported...");
+		const context = this.canvas.getContext("2d");
+		if (!context) {
+			throw new Error("Failed to get canvas context");
 		}
-		this.gl = gl;
-
-		this.ui = new UIManager(gl, this.canvas);
-
-		this.canvas.addEventListener("mousemove", (e) => {
-			this.mouseX = e.clientX;
-			this.mouseY = e.clientY;
-		});
-
-		this.canvas.addEventListener("mousedown", () => {
-			this.mousePressed = true;
-		});
-
-		this.canvas.addEventListener("mouseup", () => {
-			this.mousePressed = false;
-		});
-
-		this.loop = this.loop.bind(this);
-		requestAnimationFrame(this.loop);
+		this.context = context;
 	}
 
-	private loop() {
-		this.gl.clearColor(0.1, 0.1, 0.1, 1.0);
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+	async init(options: InitOptions = {}) {
+		if (options.background) this.background = options.background;
+		if (options.resizeTo) this.resizeTarget = options.resizeTo;
 
-		this.ui.update(this.mouseX, this.mouseY, this.mousePressed);
-		this.ui.render();
+		this.resizeCanvas();
+		this.clear();
 
-		requestAnimationFrame(this.loop);
+		// Resize Listener
+		if (this.resizeTarget instanceof Window) {
+			window.addEventListener("resize", () => this.resizeCanvas());
+		} else if (this.resizeTarget instanceof HTMLElement) {
+			new ResizeObserver(() => this.resizeCanvas()).observe(
+				this.resizeTarget
+			);
+		}
 	}
 
-	addPanel(id: number, x: number, y: number, width: number, height: number) {
-		const panel = new Panel(id, x, y, width, height);
-		this.ui.panels.push(panel);
+	clear() {
+		this.context.fillStyle = this.background;
+		this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+	}
+
+	private resizeCanvas() {
+		if (this.resizeTarget instanceof Window) {
+			this.canvas.width = window.innerWidth;
+			this.canvas.height = window.innerHeight;
+		} else if (this.resizeTarget instanceof HTMLElement) {
+			const rect = this.resizeTarget.getBoundingClientRect();
+			this.canvas.width = rect.width;
+			this.canvas.height = rect.height;
+		}
+		this.clear();
 	}
 }

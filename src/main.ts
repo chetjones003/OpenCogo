@@ -1,18 +1,40 @@
-import { Application } from "./Application.ts";
-import { Button } from "./UI/Button.ts";
+import { Application } from "./Application";
+import { Button } from "./UI/Button";
+import { Panel } from "./UI/Panel";
+import { UIManager } from "./UI/UIManager";
 
-const app = new Application();
-app.canvas.style.position = "absolute";
-document.body.appendChild(app.canvas);
-
-app.addPanel(1, 100, 100, 300, 300);
-
-{
-	const panel = app.ui.getPanel(1);
-	const button = new Button(0, 0, 300, 30, "Button 1", () => {
-		console.log("Button 1 clicked");
+async function main() {
+	const app = new Application();
+	await app.init({
+		background: "#111111",
+		resizeTo: window,
 	});
-	if (panel) {
-		panel.addChild(button);
+	app.canvas.style.position = "absolute";
+	document.body.appendChild(app.canvas);
+
+	const ui = new UIManager(app.context, app.canvas);
+
+	const panel = new Panel("Panel", 50, 50, 200, 150);
+	panel.add(
+		new Button(50, 25, "Line", () => {
+			console.log("Line command started...");
+		})
+	);
+	panel.add(
+		new Button(50, 25, "Circle", () => {
+			console.log("Circle command started...");
+		})
+	);
+
+	ui.addPanel(panel);
+
+	function frame() {
+		app.clear();
+		ui.update();
+		ui.render();
+		requestAnimationFrame(frame);
 	}
+	frame();
 }
+
+main();

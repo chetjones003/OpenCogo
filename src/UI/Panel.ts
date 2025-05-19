@@ -1,59 +1,113 @@
-import { drawRect } from "../GL/util";
 import type { UIElement } from "./UIElement";
 
 export class Panel {
-	id: number;
+	elements: UIElement[] = [];
+	name: string;
 	x: number;
 	y: number;
 	width: number;
 	height: number;
-	private children: UIElement[] = [];
+	dragging = false;
+	resizing = false;
+	dragOffsetX = 0;
+	dragOffsetY = 0;
+
+	private layoutCursorX = 0;
+	private layoutCursorY = 30;
+	private rowHeight = 0;
+	private padding = 0;
+	private spacing = 5;
 
 	constructor(
-		id: number,
+		name: string,
 		x: number,
 		y: number,
 		width: number,
 		height: number
 	) {
-		this.id = id;
+		this.name = name;
 		this.x = x;
 		this.y = y;
 		this.width = width;
 		this.height = height;
 	}
 
-	update(mouseX: number, mouseY: number, mousePressed: boolean) {
-		for (const child of this.children) {
-			if ("update" in child) {
-				(child as any).update(
-					mouseX,
-					mouseY,
-					mousePressed,
-					this.x,
-					this.y
-				);
-			}
+	add(element: UIElement) {
+		element.setParent(this);
+
+		if (this.layoutCursorX + element.width + this.padding > this.width) {
+			this.layoutCursorX = this.padding;
+			this.layoutCursorY += this.rowHeight + this.spacing;
+			this.rowHeight = 0;
 		}
 
-		// TODO: Handle dragging/resizing
+		element.x = this.layoutCursorX;
+		element.y = this.layoutCursorY;
+
+		this.layoutCursorX += element.width + this.spacing;
+		this.rowHeight = Math.max(this.rowHeight, element.height);
+
+		this.elements.push(element);
 	}
 
-	render(gl: WebGLRenderingContext) {
-		drawRect(
-			gl,
-			this.x,
-			this.y,
-			this.width,
-			this.height,
-			[0.2, 0.2, 0.2, 1.0]
-		);
-		for (const child of this.children) {
-			child.render(gl, this.x, this.y);
+	update() {
+		for (const el of this.elements) el.update?.();
+	}
+
+	render(ctx: CanvasRenderingContext2D) {
+		ctx.fillStyle = "#222";
+		ctx.fillRect(this.x, this.y, this.width, this.height);
+		ctx.fillStyle = "#333";
+		ctx.fillRect(this.x, this.y, this.width, 30);
+		ctx.fillStyle = "#fff";
+		ctx.font = "16px sans-serif";
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.fillText(this.name, this.x + this.width / 2, this.y + 30 / 2);
+
+		for (const el of this.elements) {
+			el.render(ctx);
 		}
 	}
 
-	addChild(child: UIElement) {
-		this.children.push(child);
+	onMouseDown(e: MouseEvent) {
+		const mx = e.offsetX;
+		const my = e.offsetY;
+
+		if (
+			mx > this.x &&
+			mx < this.x + this.width &&
+			my > this.y &&
+			my < this.y + 20
+		) {
+			this.dragging = true;
+			this.dragOffsetX = mx - this.x;
+			this.dragOffsetY = my - this.y;
+		}
+
+		for (const el of this.elements) {
+			el.onMouseDown?.(e);
+		}
+	}
+
+	onMouseMove(e: MouseEvent) {
+		const mx = e.offsetX;
+		const my = e.offsetY;
+
+		if (this.dragging) {
+			this.x = mx - this.dragOffsetX;
+			this.y = my - this.dragOffsetY;
+		}
+
+		for (const el of this.elements) {
+			el.onMouseMove?.(e);
+		}
+	}
+
+	onMouseUp(e: MouseEvent) {
+		this.dragging = false;
+		for (const el of this.elements) {
+			el.onMouseUp?.(e);
+		}
 	}
 }
