@@ -9,9 +9,15 @@ export class UIManager {
 		this.ctx = ctx;
 		this.canvas = canvas;
 
-		canvas.addEventListener("mousedown", this.handleMouseDown.bind(this));
-		canvas.addEventListener("mousemove", this.handleMouseMove.bind(this));
-		canvas.addEventListener("mouseup", this.handleMouseUp.bind(this));
+		this.canvas.addEventListener(
+			"mousedown",
+			this.handleMouseDown.bind(this)
+		);
+		this.canvas.addEventListener(
+			"mousemove",
+			this.handleMouseMove.bind(this)
+		);
+		this.canvas.addEventListener("mouseup", this.handleMouseUp.bind(this));
 	}
 
 	addPanel(panel: Panel) {
