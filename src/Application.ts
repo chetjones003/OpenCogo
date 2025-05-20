@@ -26,7 +26,6 @@ export class Application {
 		this.resizeCanvas();
 		this.clear();
 
-		// Resize Listener
 		if (this.resizeTarget instanceof Window) {
 			window.addEventListener("resize", () => this.resizeCanvas());
 		} else if (this.resizeTarget instanceof HTMLElement) {

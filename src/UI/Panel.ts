@@ -1,3 +1,4 @@
+import { IsMouseInside, type Rect } from "../utils/helpers";
 import type { UIElement } from "./UIElement";
 
 export class Panel {
@@ -11,6 +12,7 @@ export class Panel {
 	resizing = false;
 	dragOffsetX = 0;
 	dragOffsetY = 0;
+	panelRect: Rect;
 
 	private layoutCursorX = 0;
 	private layoutCursorY = 30;
@@ -18,18 +20,13 @@ export class Panel {
 	private padding = 0;
 	private spacing = 5;
 
-	constructor(
-		name: string,
-		x: number,
-		y: number,
-		width: number,
-		height: number
-	) {
+	constructor( name: string, x: number, y: number, width: number, height: number ) {
 		this.name = name;
 		this.x = x;
 		this.y = y;
 		this.width = width;
 		this.height = height;
+		this.panelRect = {x: this.x, y: this.y, width: this.width, height: this.height};
 	}
 
 	add(element: UIElement) {
@@ -51,6 +48,7 @@ export class Panel {
 	}
 
 	update() {
+		this.panelRect = {x: this.x, y: this.y, width: this.width, height: this.height};
 		for (const el of this.elements) el.update?.();
 	}
 
@@ -74,12 +72,7 @@ export class Panel {
 		const mx = e.offsetX;
 		const my = e.offsetY;
 
-		if (
-			mx > this.x &&
-			mx < this.x + this.width &&
-			my > this.y &&
-			my < this.y + 20
-		) {
+		if (IsMouseInside([mx, my], this.panelRect, 0, 20)) {
 			this.dragging = true;
 			this.dragOffsetX = mx - this.x;
 			this.dragOffsetY = my - this.y;

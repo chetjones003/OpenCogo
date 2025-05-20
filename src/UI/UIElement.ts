@@ -22,7 +22,7 @@ export abstract class UIElement {
 		return (this.parent?.x ?? 0) + this.x;
 	}
 
-	get gloablY() {
+	get globalY() {
 		return (this.parent?.y ?? 0) + this.y;
 	}
 
