@@ -14,7 +14,7 @@ async function main() {
 
 	const ui = new UIManager(app.context, app.canvas);
 
-	const panel = new Panel("Panel", 50, 50, 200, 150);
+	const panel = new Panel("Panel", 50, 50, 200, 150, true, false);
 	panel.add(
 		new Button(50, 25, "Line", () => {
 			console.log("Line command started...");
