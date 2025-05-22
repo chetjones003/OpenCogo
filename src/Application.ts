@@ -12,9 +12,11 @@ export class Application {
     context: CanvasRenderingContext2D;
     background: string = "#000000";
     currentCommand: Command = Command.NONE;
-    mouseClicks = 0;
+
+    private snapRadius = 10;
+    private snapCandidate: Coord | null = null;
+    private tempMouse: Coord | null = null;
     private linePoints: Coord[] = [];
-    private tempMouse: Coord = { x: 0, y: 0 };
     private frameInterval = 1000 / 30;
 
     private resizeTarget?: Window | HTMLElement | null = null;
@@ -45,6 +47,7 @@ export class Application {
 
         this.onMouseDown();
         this.onMouseMove();
+        this.onKeyDown();
     }
 
     startRenderLoop() {
@@ -76,28 +79,41 @@ export class Application {
                 this.context.lineTo(end.x, end.y);
                 this.context.stroke();
             }
+
+            if (this.snapCandidate) {
+                const pt = this.snapCandidate;
+                const size = 15;
+                this.context.strokeStyle = "green";
+                this.context.lineWidth = 1;
+                this.context.strokeRect(pt.x - size / 2, pt.y - size / 2, size, size);
+            }
         }
     }
 
     onMouseDown() {
         this.canvas.addEventListener("mousedown", (e: MouseEvent) => {
             const rect = this.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const rawMouse: Coord = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+            }
 
             if (this.currentCommand === Command.LINE) {
-                this.linePoints.push({ x, y });
-                console.log(this.linePoints);
+                const snap = this.findSnapPoint(rawMouse);
+                const point = snap ?? rawMouse;
+                this.linePoints.push(point);
 
                 if (this.linePoints.length === 1) {
-                    this.tempMouse = { x, y };
+                    this.tempMouse = rawMouse;
                 }
 
                 if (this.linePoints.length === 2) {
                     const line = new Line(this.linePoints[0], this.linePoints[1]);
                     Lines.Append(line);
-                    this.linePoints = [];
-                    this.currentCommand = Command.NONE;
+                    this.linePoints = [point];
+
+                    // Optional to keep line command going or not
+                    // this.currentCommand = Command.NONE;
                 }
             }
         });
@@ -105,8 +121,20 @@ export class Application {
 
     onMouseMove() {
         this.canvas.addEventListener("mousemove", (e: MouseEvent) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const rawMouse: Coord = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+            };
+
+            if (this.currentCommand === Command.LINE) {
+                const snap = this.findSnapPoint(rawMouse);
+                this.snapCandidate = snap;
+                this.tempMouse = snap ?? rawMouse;
+            }
+
+
             if (this.currentCommand === Command.LINE && this.linePoints.length === 1) {
-                const rect = this.canvas.getBoundingClientRect();
                 this.tempMouse = {
                     x: e.clientX - rect.left,
                     y: e.clientY - rect.top,
@@ -115,10 +143,50 @@ export class Application {
         });
     }
 
+    onKeyDown() {
+        window.addEventListener("keydown", (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                if (this.currentCommand === Command.LINE) {
+                    this.linePoints = [];
+                }
+                this.currentCommand = Command.NONE;
+                this.snapCandidate = null;
+                this.tempMouse = null;
+                console.log("Command Canceld");
+            }
+        });
+    }
+
     clear() {
         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.context.fillStyle = this.background;
         this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+
+    private findSnapPoint(cursor: Coord): Coord | null {
+        for (const line of Lines.lineArray) {
+            const endpoints = [line.start, line.end];
+            for (const pt of endpoints) {
+
+                if (this.linePoints.length > 0 && this.pointsEqual(pt, this.linePoints[0])) {
+                    continue;
+                }
+
+                const dx = pt.x - cursor.x;
+                const dy = pt.y - cursor.y;
+
+                const distSq = Math.pow(dx, 2) + Math.pow(dy, 2);
+
+                if (distSq <= Math.pow(this.snapRadius, 2)) {
+                    return pt
+                }
+            }
+        }
+        return null;
+    }
+
+    private pointsEqual(a: Coord, b: Coord): boolean {
+        return a.x === b.x && a.y === b.y;
     }
 
     private resizeCanvas() {

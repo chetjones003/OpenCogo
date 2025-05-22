@@ -31,6 +31,7 @@ async function main() {
     panel.add(
         new Button(50, 25, "Clear", () => {
             Lines.lineArray = [];
+            app.currentCommand = Command.NONE;
             app.clear();
         })
     )
