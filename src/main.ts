@@ -1,5 +1,6 @@
 import { Application } from "./Application";
 import { Command } from "./Commands/Commands";
+import { Lines } from "./Entities/Line";
 import { Button } from "./UI/Button";
 import { Panel } from "./UI/Panel";
 import { UIManager } from "./UI/UIManager";
@@ -27,6 +28,12 @@ async function main() {
             console.log("Circle command started...");
         })
     );
+    panel.add(
+        new Button(50, 25, "Clear", () => {
+            Lines.lineArray = [];
+            app.clear();
+        })
+    )
 
     ui.addPanel(panel);
 
