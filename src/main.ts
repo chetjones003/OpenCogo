@@ -3,7 +3,6 @@ import { Command } from "./Commands/Commands";
 import { Lines } from "./Entities/Line";
 import { Button } from "./UI/Button";
 import { Panel } from "./UI/Panel";
-import { UIManager } from "./UI/UIManager";
 
 async function main() {
     const app = new Application();
@@ -11,10 +10,7 @@ async function main() {
         background: "#111111",
         resizeTo: window,
     });
-    app.canvas.style.position = "absolute";
     document.body.appendChild(app.canvas);
-
-    const ui = new UIManager(app.context, app.canvas);
 
     const panel = new Panel("Panel", 50, 50, 200, 150, true, false);
     panel.add(
@@ -36,13 +32,13 @@ async function main() {
         })
     )
 
-    ui.addPanel(panel);
+    app.ui.addPanel(panel);
 
     function frame() {
         app.clear();
         app.render();
-        ui.update();
-        ui.render();
+
+        app.renderCursor();
         requestAnimationFrame(frame);
     }
     frame();

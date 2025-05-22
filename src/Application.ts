@@ -1,6 +1,7 @@
 import { Command } from "./Commands/Commands";
 import type { Coord } from "./Entities/Coord";
 import { Line, Lines } from "./Entities/Line";
+import { UIManager } from "./UI/UIManager";
 
 type InitOptions = {
     background?: string;
@@ -12,12 +13,13 @@ export class Application {
     context: CanvasRenderingContext2D;
     background: string = "#000000";
     currentCommand: Command = Command.NONE;
+    ui: UIManager;
 
     private snapRadius = 10;
     private snapCandidate: Coord | null = null;
     private tempMouse: Coord | null = null;
     private linePoints: Coord[] = [];
-    private frameInterval = 1000 / 30;
+    private overPanel: boolean = false;
 
     private resizeTarget?: Window | HTMLElement | null = null;
 
@@ -28,11 +30,15 @@ export class Application {
             throw new Error("Failed to get canvas context");
         }
         this.context = context;
+        this.ui = new UIManager(this.context, this.canvas);
     }
 
     async init(options: InitOptions = {}) {
         if (options.background) this.background = options.background;
         if (options.resizeTo) this.resizeTarget = options.resizeTo;
+
+        this.canvas.style.cursor = "none";
+        this.canvas.style.position = "absolute";
 
         this.resizeCanvas();
         this.clear();
@@ -50,13 +56,8 @@ export class Application {
         this.onKeyDown();
     }
 
-    startRenderLoop() {
-        setInterval(() => {
-            this.render();
-        }, this.frameInterval);
-    }
-
     render() {
+        this.ui.update();
         if (this.context) {
             for (const line of Lines.lineArray) {
                 this.context.strokeStyle = "red";
@@ -87,6 +88,30 @@ export class Application {
                 this.context.lineWidth = 1;
                 this.context.strokeRect(pt.x - size / 2, pt.y - size / 2, size, size);
             }
+
+        }
+        this.ui.render();
+    }
+
+    renderCursor() {
+        if (this.context) {
+            // Custom Cursor
+            if (this.tempMouse && !this.overPanel) {
+                const pt = this.tempMouse;
+
+                this.context.strokeStyle = "orange";
+                this.context.lineWidth = 1;
+
+                this.context.beginPath();
+                this.context.moveTo(0, pt.y);
+                this.context.lineTo(this.canvas.width, pt.y);
+                this.context.stroke();
+
+                this.context.beginPath();
+                this.context.moveTo(pt.x, 0);
+                this.context.lineTo(pt.x, this.canvas.height);
+                this.context.stroke();
+            }
         }
     }
 
@@ -96,6 +121,10 @@ export class Application {
             const rawMouse: Coord = {
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top,
+            }
+
+            if (this.overPanel) {
+                return;
             }
 
             if (this.currentCommand === Command.LINE) {
@@ -126,6 +155,9 @@ export class Application {
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top,
             };
+            this.overPanel = this.ui.isCursorOverPanel(rawMouse);
+            this.canvas.style.cursor = this.overPanel ? "default" : "none";
+            this.tempMouse = rawMouse;
 
             if (this.currentCommand === Command.LINE) {
                 const snap = this.findSnapPoint(rawMouse);
