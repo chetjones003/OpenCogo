@@ -2,6 +2,7 @@ import { Command } from "./Commands/Commands";
 import type { Coord } from "./Entities/Coord";
 import { Line, Lines } from "./Entities/Line";
 import { UIManager } from "./UI/UIManager";
+import { CameraController } from "./utils/CameraController";
 
 type InitOptions = {
     background?: string;
@@ -11,17 +12,20 @@ type InitOptions = {
 export class Application {
     canvas: HTMLCanvasElement;
     context: CanvasRenderingContext2D;
+    camera: CameraController = new CameraController();
     background: string = "#000000";
     currentCommand: Command = Command.NONE;
     ui: UIManager;
 
     private snapRadius = 10;
     private snapCandidate: Coord | null = null;
-    private tempMouse: Coord | null = null;
     private linePoints: Coord[] = [];
     private overPanel: boolean = false;
-
     private resizeTarget?: Window | HTMLElement | null = null;
+    private isPanning: boolean = false;
+    private lastMouse: Coord = { x: 0, y: 0 };
+    private tempMouseScreen: Coord | null = { x: 0, y: 0 };
+    private tempMouseWorld: Coord | null = { x: 0, y: 0 };
 
     constructor() {
         this.canvas = document.createElement("canvas");
@@ -52,13 +56,26 @@ export class Application {
         }
 
         this.onMouseDown();
+        this.onMouseUp();
         this.onMouseMove();
+        this.onMouseWheel();
         this.onKeyDown();
     }
 
     render() {
         this.ui.update();
         if (this.context) {
+
+            this.context.setTransform(
+                this.camera.zoom,
+                0,
+                0,
+                this.camera.zoom,
+                -this.camera.position.x * this.camera.zoom,
+                -this.camera.position.y * this.camera.zoom
+            )
+
+
             for (const line of Lines.lineArray) {
                 this.context.strokeStyle = "red";
                 this.context.lineWidth = 2;
@@ -69,15 +86,15 @@ export class Application {
 
             }
 
-            if (this.currentCommand === Command.LINE && this.linePoints.length === 1 && this.tempMouse) {
+            if (this.currentCommand === Command.LINE && this.linePoints.length === 1 && this.tempMouseWorld) {
                 const start = this.linePoints[0];
-                const end = this.tempMouse;
+                const end = this.tempMouseWorld;
 
                 this.context.strokeStyle = "yellow";
                 this.context.lineWidth = 2;
                 this.context.beginPath();
                 this.context.moveTo(start.x, start.y);
-                this.context.lineTo(end.x, end.y);
+                this.context.lineTo(end!.x, end!.y);
                 this.context.stroke();
             }
 
@@ -89,29 +106,31 @@ export class Application {
                 this.context.strokeRect(pt.x - size / 2, pt.y - size / 2, size, size);
             }
 
+            // Reset Transform for UI
+            this.context.setTransform(1, 0, 0, 1, 0, 0);
         }
         this.ui.render();
     }
 
     renderCursor() {
-        if (this.context) {
-            // Custom Cursor
-            if (this.tempMouse && !this.overPanel) {
-                const pt = this.tempMouse;
+        // Custom Cursor
+        if (this.context && this.tempMouseScreen && !this.overPanel) {
+            const screenMouse = this.tempMouseScreen;
 
-                this.context.strokeStyle = "orange";
-                this.context.lineWidth = 1;
+            // Reset Transform for Cursor
+            this.context.setTransform(1, 0, 0, 1, 0, 0);
+            this.context.strokeStyle = "orange";
+            this.context.lineWidth = 1;
 
-                this.context.beginPath();
-                this.context.moveTo(0, pt.y);
-                this.context.lineTo(this.canvas.width, pt.y);
-                this.context.stroke();
+            this.context.beginPath();
+            this.context.moveTo(0, screenMouse!.y);
+            this.context.lineTo(this.canvas.width, screenMouse!.y);
+            this.context.stroke();
 
-                this.context.beginPath();
-                this.context.moveTo(pt.x, 0);
-                this.context.lineTo(pt.x, this.canvas.height);
-                this.context.stroke();
-            }
+            this.context.beginPath();
+            this.context.moveTo(screenMouse!.x, 0);
+            this.context.lineTo(screenMouse!.x, this.canvas.height);
+            this.context.stroke();
         }
     }
 
@@ -127,13 +146,19 @@ export class Application {
                 return;
             }
 
+            if (e.button === 1) { // Middle Mouse Button
+                this.isPanning = true;
+                this.lastMouse = { x: e.clientX, y: e.clientY };
+            }
+
             if (this.currentCommand === Command.LINE) {
-                const snap = this.findSnapPoint(rawMouse);
-                const point = snap ?? rawMouse;
+                const worldMouse = this.camera.screenToWorld(rawMouse);
+                const snap = this.findSnapPoint(worldMouse);
+                const point = snap ?? worldMouse;
                 this.linePoints.push(point);
 
                 if (this.linePoints.length === 1) {
-                    this.tempMouse = rawMouse;
+                    this.tempMouseWorld = worldMouse;
                 }
 
                 if (this.linePoints.length === 2) {
@@ -148,6 +173,14 @@ export class Application {
         });
     }
 
+    onMouseUp() {
+        this.canvas.addEventListener("mouseup", (e: MouseEvent) => {
+            if (e.button === 1) {
+                this.isPanning = false;
+            }
+        });
+    }
+
     onMouseMove() {
         this.canvas.addEventListener("mousemove", (e: MouseEvent) => {
             const rect = this.canvas.getBoundingClientRect();
@@ -157,21 +190,53 @@ export class Application {
             };
             this.overPanel = this.ui.isCursorOverPanel(rawMouse);
             this.canvas.style.cursor = this.overPanel ? "default" : "none";
-            this.tempMouse = rawMouse;
+
+            this.tempMouseScreen = rawMouse;
+            const worldMouse = this.camera.screenToWorld(rawMouse);
+            this.tempMouseWorld = worldMouse;
+
+            if (this.isPanning) {
+                const dx = e.clientX - this.lastMouse.x;
+                const dy = e.clientY - this.lastMouse.y;
+
+                this.camera.position.x -= dx;
+                this.camera.position.y -= dy;
+
+                this.lastMouse = { x: e.clientX, y: e.clientY };
+            }
 
             if (this.currentCommand === Command.LINE) {
-                const snap = this.findSnapPoint(rawMouse);
+                const snap = this.findSnapPoint(worldMouse);
                 this.snapCandidate = snap;
-                this.tempMouse = snap ?? rawMouse;
+                if (snap) this.tempMouseWorld = snap;
+            } else {
+                this.snapCandidate = null;
             }
 
+        });
+    }
 
-            if (this.currentCommand === Command.LINE && this.linePoints.length === 1) {
-                this.tempMouse = {
-                    x: e.clientX - rect.left,
-                    y: e.clientY - rect.top,
-                }
+    onMouseWheel() {
+        this.canvas.addEventListener("wheel", (e: WheelEvent) => {
+            const zoomFactor = 1.1;
+            const mouse: Coord = {
+                x: e.offsetX,
+                y: e.offsetY,
+            };
+            const worldBefore = this.camera.screenToWorld(mouse);
+
+            if (e.deltaY < 0) {
+                this.camera.zoom *= zoomFactor;
+            } else {
+                this.camera.zoom /= zoomFactor;
             }
+
+            const worldAfter = this.camera.screenToWorld(mouse);
+
+            this.camera.position.x += (worldBefore.x - worldAfter.x);
+            this.camera.position.y += (worldBefore.y - worldAfter.y);
+
+            e.preventDefault();
         });
     }
 
@@ -183,7 +248,6 @@ export class Application {
                 }
                 this.currentCommand = Command.NONE;
                 this.snapCandidate = null;
-                this.tempMouse = null;
                 console.log("Command Canceld");
             }
         });
