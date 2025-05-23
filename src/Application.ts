@@ -196,8 +196,8 @@ export class Application {
             this.tempMouseWorld = worldMouse;
 
             if (this.isPanning) {
-                const dx = e.clientX - this.lastMouse.x;
-                const dy = e.clientY - this.lastMouse.y;
+                const dx = (e.clientX - this.lastMouse.x) / this.camera.zoom;
+                const dy = (e.clientY - this.lastMouse.y) / this.camera.zoom;
 
                 this.camera.position.x -= dx;
                 this.camera.position.y -= dy;
