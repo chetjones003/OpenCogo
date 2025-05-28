@@ -16,7 +16,7 @@ async function main() {
     panel.add(
         new Button(50, 25, "Line", () => {
             console.log("Line command started...");
-            app.currentCommand = Command.LINE;
+            app.commandManager.currentCommand = Command.LINE;
         })
     );
     panel.add(
@@ -27,7 +27,7 @@ async function main() {
     panel.add(
         new Button(50, 25, "Clear", () => {
             Lines.lineArray = [];
-            app.currentCommand = Command.NONE;
+            app.commandManager.currentCommand = Command.NONE;
             app.clear();
         })
     )

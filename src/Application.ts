@@ -19,19 +19,14 @@ export class Application {
     background: string = "#000000";
     currentCommand: Command = Command.NONE;
     ui: UIManager;
+    commandManager: CommandManager;
 
     private inputManager: InputManager;
-    private commandManager: CommandManager;
     private inputContext: InputContext;
     private snapper: SnapManager;
     private lineTool: LineTool;
 
-    private snapCandidate: Coord | null = null;
-    private linePoints: Coord[] = [];
-    private overPanel: boolean = false;
     private resizeTarget?: Window | HTMLElement | null = null;
-    private tempMouseScreen: Coord | null = { x: 0, y: 0 };
-    private tempMouseWorld: Coord | null = { x: 0, y: 0 };
 
     constructor() {
         this.canvas = document.createElement("canvas");
@@ -43,9 +38,9 @@ export class Application {
 
         this.context = context;
         this.inputContext = new InputContext(this.canvas);
-        this.ui = new UIManager(this.context, this.canvas);
         this.inputManager = new InputManager(this.canvas);
         this.commandManager = new CommandManager();
+        this.ui = new UIManager(this.context, this.canvas);
         this.snapper = new SnapManager();
         this.lineTool = new LineTool(this.canvas, this.camera, this.inputContext, this.snapper, this.commandManager, this.ui);
 
@@ -72,7 +67,6 @@ export class Application {
 
         this.inputManager.addHandler(this.lineTool);
         this.onMouseWheel();
-        this.onKeyDown();
     }
 
     render() {
@@ -99,9 +93,9 @@ export class Application {
 
             }
 
-            if (this.currentCommand === Command.LINE && this.linePoints.length === 1 && this.tempMouseWorld) {
-                const start = this.linePoints[0];
-                const end = this.tempMouseWorld;
+            if (this.commandManager.currentCommand === Command.LINE && Lines.lineEndPoints.length === 1 && this.inputContext.tempMouseWorld) {
+                const start = Lines.lineEndPoints[0];
+                const end = this.inputContext.tempMouseWorld;
 
                 this.context.strokeStyle = "yellow";
                 this.context.lineWidth = 2;
@@ -111,12 +105,14 @@ export class Application {
                 this.context.stroke();
             }
 
-            if (this.snapCandidate) {
-                const pt = this.snapCandidate;
+            if (this.snapper.snapCandidate) {
+                const pt = this.snapper.snapCandidate;
                 const size = 15;
                 this.context.strokeStyle = "green";
-                this.context.lineWidth = 1;
-                this.context.strokeRect(pt.x - size / 2, pt.y - size / 2, size, size);
+                this.context.lineWidth = 2;
+                if (pt) {
+                    this.context.strokeRect(pt.x - size / 2, pt.y - size / 2, size, size);
+                }
             }
 
             // Reset Transform for UI
@@ -127,8 +123,8 @@ export class Application {
 
     renderCursor() {
         // Custom Cursor
-        if (this.context && this.tempMouseScreen && !this.overPanel) {
-            const screenMouse = this.tempMouseScreen;
+        if (this.context && this.inputContext.tempMouseScreen && !this.inputContext.overPanel) {
+            const screenMouse = this.inputContext.tempMouseScreen;
 
             // Reset Transform for Cursor
             this.context.setTransform(1, 0, 0, 1, 0, 0);
@@ -168,19 +164,6 @@ export class Application {
             this.camera.position.y += (worldBefore.y - worldAfter.y);
 
             e.preventDefault();
-        });
-    }
-
-    onKeyDown() {
-        window.addEventListener("keydown", (e: KeyboardEvent) => {
-            if (e.key === "Escape") {
-                if (this.currentCommand === Command.LINE) {
-                    this.linePoints = [];
-                }
-                this.currentCommand = Command.NONE;
-                this.snapCandidate = null;
-                console.log("Command Canceld");
-            }
         });
     }
 

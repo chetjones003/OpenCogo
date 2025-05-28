@@ -1,13 +1,4 @@
 /**
- * Represents any input event that can be handled by the input system.
- *
- * This includes mouse events, wheel scroll events, and keyboard events.
- * It is used in the dispatch mechanism to provide a generic event parameter
- * while preserving type safety.
- */
-type InputEvent = MouseEvent | WheelEvent | KeyboardEvent;
-
-/**
  * Represents the valid method names of an `InputHandler`.
  *
  * This is used to generically reference handler methods (e.g., `"onMouseDown"`)
@@ -61,6 +52,7 @@ export class InputManager {
         this.canvas.addEventListener("mousemove", e => this.dispatch("onMouseMove", e));
         this.canvas.addEventListener("wheel", e => this.dispatch("onMouseScroll", e));
         window.addEventListener("keydown", e => this.dispatch("onKeyDown", e));
+
     }
 
     /**
@@ -99,15 +91,14 @@ export class InputManager {
     * @param {HandlerMethod} method - the method to call on child
     * @param {InputEvent} event - The matched event to the method
     */
-    private dispatch<K extends HandlerMethod>(method: K, event: InputEvent) {
+    private dispatch<K extends HandlerMethod>(
+        method: K,
+        event: K extends "onMouseScroll" ? WheelEvent :
+            K extends "onKeyDown" ? KeyboardEvent :
+            MouseEvent
+    ): void {
         for (const handler of this.handlers) {
-            const fn = handler[method] as ((event: any) => void) | undefined;
-
-            if (fn) {
-                fn(event);
-            } else {
-                console.warn(`Please implement ${method} for: `, handler);
-            }
+            handler[method]?.(event as any);
         }
     }
 }

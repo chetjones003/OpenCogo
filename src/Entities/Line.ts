@@ -93,15 +93,13 @@ export class LineTool implements InputHandler {
     }
 
     onMouseMove(e: MouseEvent): void {
-        const rect = this.input.canvas.getBoundingClientRect();
+        const rect = this.canvas.getBoundingClientRect();
         const rawMouse: Coord = {
             x: e.clientX - rect.left,
             y: e.clientY - rect.top,
         };
-        if (this.input.canvas) {
-            this.input.overPanel = this.uiManager.isCursorOverPanel(rawMouse);
-            this.input.canvas.style.cursor = this.input.overPanel ? "default" : "none";
-        }
+        this.input.overPanel = this.uiManager.isCursorOverPanel(rawMouse);
+        this.canvas.style.cursor = this.input.overPanel ? "default" : "none";
 
         this.input.tempMouseScreen = rawMouse;
         const worldMouse = this.camera.screenToWorld(rawMouse);
@@ -123,6 +121,17 @@ export class LineTool implements InputHandler {
             if (snap) this.input.tempMouseWorld = snap;
         } else {
             this.snapper.snapCandidate = null;
+        }
+    }
+
+    onKeyDown(e: KeyboardEvent): void {
+        if (e.key === "Escape") {
+            if (this.commandManager.currentCommand === Command.LINE) {
+                Lines.lineEndPoints = [];
+            }
+            this.commandManager.currentCommand = Command.NONE;
+            this.snapper.snapCandidate = null;
+            console.log("Command Canceld");
         }
     }
 }
