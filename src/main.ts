@@ -1,5 +1,5 @@
 import { Application } from "./Application";
-import { Command } from "./Commands/Commands";
+import { Command } from "./Commands/CommandManager";
 import { Lines } from "./Entities/Line";
 import { Button } from "./UI/Button";
 import { Panel } from "./UI/Panel";

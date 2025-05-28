@@ -1,6 +1,9 @@
-import { Command } from "./Commands/Commands";
+import { Command, CommandManager } from "./Commands/CommandManager";
 import type { Coord } from "./Entities/Coord";
-import { Line, Lines } from "./Entities/Line";
+import { Lines, LineTool } from "./Entities/Line";
+import { InputContext } from "./Input/InputContext";
+import { InputManager } from "./Input/InputManager";
+import { SnapManager } from "./Input/SnapManager";
 import { UIManager } from "./UI/UIManager";
 import { CameraController } from "./utils/CameraController";
 
@@ -17,24 +20,35 @@ export class Application {
     currentCommand: Command = Command.NONE;
     ui: UIManager;
 
-    private snapRadius = 10;
+    private inputManager: InputManager;
+    private commandManager: CommandManager;
+    private inputContext: InputContext;
+    private snapper: SnapManager;
+    private lineTool: LineTool;
+
     private snapCandidate: Coord | null = null;
     private linePoints: Coord[] = [];
     private overPanel: boolean = false;
     private resizeTarget?: Window | HTMLElement | null = null;
-    private isPanning: boolean = false;
-    private lastMouse: Coord = { x: 0, y: 0 };
     private tempMouseScreen: Coord | null = { x: 0, y: 0 };
     private tempMouseWorld: Coord | null = { x: 0, y: 0 };
 
     constructor() {
         this.canvas = document.createElement("canvas");
         const context = this.canvas.getContext("2d");
+
         if (!context) {
             throw new Error("Failed to get canvas context");
         }
+
         this.context = context;
+        this.inputContext = new InputContext(this.canvas);
         this.ui = new UIManager(this.context, this.canvas);
+        this.inputManager = new InputManager(this.canvas);
+        this.commandManager = new CommandManager();
+        this.snapper = new SnapManager();
+        this.lineTool = new LineTool(this.canvas, this.camera, this.inputContext, this.snapper, this.commandManager, this.ui);
+
     }
 
     async init(options: InitOptions = {}) {
@@ -55,9 +69,8 @@ export class Application {
             );
         }
 
-        this.onMouseDown();
-        this.onMouseUp();
-        this.onMouseMove();
+
+        this.inputManager.addHandler(this.lineTool);
         this.onMouseWheel();
         this.onKeyDown();
     }
@@ -134,88 +147,6 @@ export class Application {
         }
     }
 
-    onMouseDown() {
-        this.canvas.addEventListener("mousedown", (e: MouseEvent) => {
-            const rect = this.canvas.getBoundingClientRect();
-            const rawMouse: Coord = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            }
-
-            if (this.overPanel) {
-                return;
-            }
-
-            if (e.button === 1) { // Middle Mouse Button
-                this.isPanning = true;
-                this.lastMouse = { x: e.clientX, y: e.clientY };
-            }
-
-            if (this.currentCommand === Command.LINE) {
-                const worldMouse = this.camera.screenToWorld(rawMouse);
-                const snap = this.findSnapPoint(worldMouse);
-                const point = snap ?? worldMouse;
-                this.linePoints.push(point);
-
-                if (this.linePoints.length === 1) {
-                    this.tempMouseWorld = worldMouse;
-                }
-
-                if (this.linePoints.length === 2) {
-                    const line = new Line(this.linePoints[0], this.linePoints[1]);
-                    Lines.Append(line);
-                    this.linePoints = [point];
-
-                    // Optional to keep line command going or not
-                    // this.currentCommand = Command.NONE;
-                }
-            }
-        });
-    }
-
-    onMouseUp() {
-        this.canvas.addEventListener("mouseup", (e: MouseEvent) => {
-            if (e.button === 1) {
-                this.isPanning = false;
-            }
-        });
-    }
-
-    onMouseMove() {
-        this.canvas.addEventListener("mousemove", (e: MouseEvent) => {
-            const rect = this.canvas.getBoundingClientRect();
-            const rawMouse: Coord = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            };
-            this.overPanel = this.ui.isCursorOverPanel(rawMouse);
-            this.canvas.style.cursor = this.overPanel ? "default" : "none";
-
-            this.tempMouseScreen = rawMouse;
-            const worldMouse = this.camera.screenToWorld(rawMouse);
-            this.tempMouseWorld = worldMouse;
-
-            if (this.isPanning) {
-                const dx = (e.clientX - this.lastMouse.x) / this.camera.zoom;
-                const dy = (e.clientY - this.lastMouse.y) / this.camera.zoom;
-
-                this.camera.position.x -= dx;
-                this.camera.position.y -= dy;
-
-                this.lastMouse = { x: e.clientX, y: e.clientY };
-            }
-
-            if (this.currentCommand === Command.LINE) {
-                const snap = this.findSnapPoint(worldMouse);
-                this.snapCandidate = snap;
-                if (snap) this.tempMouseWorld = snap;
-            } else {
-                this.snapCandidate = null;
-            }
-
-        });
-    }
-
     onMouseWheel() {
         this.canvas.addEventListener("wheel", (e: WheelEvent) => {
             const zoomFactor = 1.1;
@@ -257,32 +188,6 @@ export class Application {
         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
         this.context.fillStyle = this.background;
         this.context.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    }
-
-    private findSnapPoint(cursor: Coord): Coord | null {
-        for (const line of Lines.lineArray) {
-            const endpoints = [line.start, line.end];
-            for (const pt of endpoints) {
-
-                if (this.linePoints.length > 0 && this.pointsEqual(pt, this.linePoints[0])) {
-                    continue;
-                }
-
-                const dx = pt.x - cursor.x;
-                const dy = pt.y - cursor.y;
-
-                const distSq = Math.pow(dx, 2) + Math.pow(dy, 2);
-
-                if (distSq <= Math.pow(this.snapRadius, 2)) {
-                    return pt
-                }
-            }
-        }
-        return null;
-    }
-
-    private pointsEqual(a: Coord, b: Coord): boolean {
-        return a.x === b.x && a.y === b.y;
     }
 
     private resizeCanvas() {
